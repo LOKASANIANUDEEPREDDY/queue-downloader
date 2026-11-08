@@ -1,0 +1,17 @@
+services:
+  queue-downloader:
+    build: .
+    container_name: queue-downloader
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - DOWNLOAD_DIR=/app/downloads
+      - DB_PATH=/app/data/queue.db
+      - RETENTION_DAYS=7
+    volumes:
+      - ./downloads:/app/downloads
+      - ./data:/app/data
+

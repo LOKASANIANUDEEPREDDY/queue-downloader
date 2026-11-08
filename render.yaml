@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: queue-downloader
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: RETENTION_DAYS
+        value: "1"

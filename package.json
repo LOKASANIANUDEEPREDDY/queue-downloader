@@ -1,0 +1,53 @@
+{
+  "name": "queue-downloader",
+  "version": "1.0.0",
+  "description": "Sequential YouTube queue downloader web app powered by yt-dlp and ffmpeg",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "tsx watch src/server/index.ts",
+    "dev:client": "vite",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build": "npm run build:client && npm run build:server",
+    "start": "NODE_ENV=production node dist-server/server/index.js",
+    "deploy": "./scripts/service.sh start",
+    "deploy:stop": "./scripts/service.sh stop",
+    "deploy:status": "./scripts/service.sh status",
+    "deploy:logs": "./scripts/service.sh logs",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "youtube",
+    "queue",
+    "downloader",
+    "yt-dlp",
+    "ffmpeg"
+  ],
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^18.0.0",
+    "express": "^5.0.0",
+    "lucide-react": "^1.16.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vitest": "^3.0.0"
+  }
+}
