@@ -2,6 +2,8 @@
 
 **Queue Downloader** is a web application designed to download YouTube videos sequentially one after another from an automated queue. Powered by **Node.js, Express, TypeScript, SQLite, yt-dlp, ffmpeg, React 19, and Tailwind CSS**.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/LOKASANIANUDEEPREDDY/queue-downloader)
+
 ---
 
 ## 🎯 Key Features
