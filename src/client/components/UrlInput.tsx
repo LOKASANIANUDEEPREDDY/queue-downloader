@@ -4,6 +4,7 @@ import { DownloadFormat, VideoQuality, AddUrlsResponse } from '../../shared/type
 import { toast } from './Toast.js';
 import { PlaylistModal } from './PlaylistModal.js';
 import { safeFetchJson } from '../utils/api.js';
+import { safeFetchJson } from '../utils/api.js';
 
 interface UrlInputProps {
   onAddSuccess?: (response: AddUrlsResponse) => void;
