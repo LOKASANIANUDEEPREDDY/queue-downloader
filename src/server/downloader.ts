@@ -75,7 +75,116 @@ export function cancelActiveProcess(itemId: string): boolean {
   return false;
 }
 
+async function fetchVideoMetadataFromWeb(url: string): Promise<MetadataResult | null> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const match =
+      html.match(/var ytInitialPlayerResponse = ({.*?});<\/script>/) ||
+      html.match(/ytInitialPlayerResponse\s*=\s*({.*?});/);
+    if (!match) return null;
+    const data = JSON.parse(match[1]);
+    const details = data.videoDetails;
+    if (!details || !details.videoId) return null;
+    return {
+      id: details.videoId,
+      title: details.title || 'Untitled Video',
+      channel: details.author || 'Unknown Channel',
+      duration: parseInt(details.lengthSeconds || '0', 10) || 0,
+      thumbnail: details.thumbnail?.thumbnails?.slice(-1)[0]?.url || `https://i.ytimg.com/vi/${details.videoId}/hqdefault.jpg`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchPlaylistEntriesFromWeb(url: string): Promise<PlaylistInfo | null> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const match =
+      html.match(/var ytInitialData = ({.*?});<\/script>/) ||
+      html.match(/ytInitialData\s*=\s*({.*?});/);
+    if (!match) return null;
+    const data = JSON.parse(match[1]);
+
+    const title =
+      data.metadata?.playlistMetadataRenderer?.title ||
+      data.header?.playlistHeaderRenderer?.title?.simpleText ||
+      'YouTube Playlist';
+    const entries: PlaylistInfo['entries'] = [];
+    const seen = new Set<string>();
+
+    function walk(obj: any) {
+      if (!obj || typeof obj !== 'object') return;
+      if (obj.lockupViewModel && obj.lockupViewModel.contentId) {
+        const id = obj.lockupViewModel.contentId;
+        if (typeof id === 'string' && id.length === 11 && !seen.has(id)) {
+          seen.add(id);
+          const vTitle =
+            obj.lockupViewModel.metadata?.lockupMetadataViewModel?.title?.content || 'Untitled Video';
+          entries.push({
+            id,
+            url: `https://www.youtube.com/watch?v=${id}`,
+            title: vTitle,
+          });
+        }
+      }
+      if (obj.playlistVideoRenderer && obj.playlistVideoRenderer.videoId) {
+        const id = obj.playlistVideoRenderer.videoId;
+        if (typeof id === 'string' && id.length === 11 && !seen.has(id)) {
+          seen.add(id);
+          const vTitle =
+            obj.playlistVideoRenderer.title?.runs?.[0]?.text ||
+            obj.playlistVideoRenderer.title?.simpleText ||
+            'Untitled Video';
+          const duration = parseInt(obj.playlistVideoRenderer.lengthSeconds || '0', 10);
+          entries.push({
+            id,
+            url: `https://www.youtube.com/watch?v=${id}`,
+            title: vTitle,
+            duration: duration || undefined,
+          });
+        }
+      }
+      for (const k of Object.keys(obj)) {
+        walk(obj[k]);
+      }
+    }
+    walk(data);
+
+    if (entries.length > 0) {
+      return { title, entries };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchVideoMetadata(url: string, abortSignal?: AbortSignal): Promise<MetadataResult | null> {
+  // First attempt fast zero-dependency web extraction (works on Vercel without yt-dlp)
+  try {
+    const webMeta = await fetchVideoMetadataFromWeb(url);
+    if (webMeta) {
+      return webMeta;
+    }
+  } catch {}
+
   return new Promise((resolve) => {
     const args = [
       '--dump-single-json',
@@ -154,6 +263,14 @@ export interface PlaylistInfo {
 }
 
 export async function fetchPlaylistEntries(url: string): Promise<PlaylistInfo | null> {
+  // First attempt fast zero-dependency web extraction (works on Vercel without yt-dlp)
+  try {
+    const webResult = await fetchPlaylistEntriesFromWeb(url);
+    if (webResult && webResult.entries.length > 0) {
+      return webResult;
+    }
+  } catch {}
+
   return new Promise((resolve) => {
     const args = [
       '--flat-playlist',
