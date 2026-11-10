@@ -150,13 +150,18 @@ export async function installCloudTools(): Promise<{ success: boolean; message: 
   // 1. Install or update yt-dlp standalone executable
   const ytdlpPath = path.join(binDir, 'yt-dlp');
   try {
-    const url = process.platform === 'linux'
-      ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux'
-      : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+    let url = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+    if (process.platform === 'linux') {
+      if (process.arch === 'arm64') {
+        url = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64';
+      } else {
+        url = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
+      }
+    }
     
     await downloadBinary(url, ytdlpPath);
     fs.chmodSync(ytdlpPath, 0o755);
-    messages.push('yt-dlp standalone binary installed successfully.');
+    messages.push(`yt-dlp binary (${process.platform}-${process.arch}) installed.`);
   } catch (err: any) {
     messages.push(`yt-dlp auto-install note: ${err?.message || 'Download failed'}`);
   }

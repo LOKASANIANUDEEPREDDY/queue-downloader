@@ -29,6 +29,28 @@ export interface DownloadResult {
 // Track active child processes by item ID for cancellation
 const activeProcesses = new Map<string, ChildProcess>();
 
+export function getCookieArgs(): string[] {
+  const possiblePaths = [
+    process.env.COOKIES_PATH,
+    path.join(process.cwd(), 'data', 'cookies.txt'),
+    path.join(process.cwd(), 'cookies.txt'),
+    path.join(config.downloadDir, 'cookies.txt'),
+    path.join(path.dirname(config.dbPath), 'cookies.txt'),
+  ].filter(Boolean) as string[];
+
+  for (const cookiePath of possiblePaths) {
+    if (fs.existsSync(cookiePath)) {
+      return ['--cookies', cookiePath];
+    }
+  }
+
+  if (process.env.COOKIES_BROWSER) {
+    return ['--cookies-from-browser', process.env.COOKIES_BROWSER];
+  }
+
+  return [];
+}
+
 export function cancelActiveProcess(itemId: string): boolean {
   const proc = activeProcesses.get(itemId);
   if (proc) {
@@ -60,6 +82,8 @@ export async function fetchVideoMetadata(url: string, abortSignal?: AbortSignal)
       '--no-warnings',
       '--no-playlist',
       '--skip-download',
+      '--extractor-args', 'youtube:player_client=ios,android,tv,web',
+      ...getCookieArgs(),
       url,
     ];
 
@@ -135,6 +159,8 @@ export async function fetchPlaylistEntries(url: string): Promise<PlaylistInfo | 
       '--flat-playlist',
       '--dump-single-json',
       '--no-warnings',
+      '--extractor-args', 'youtube:player_client=ios,android,tv,web',
+      ...getCookieArgs(),
       url,
     ];
 
@@ -203,6 +229,18 @@ function parseReadableError(rawStderr: string): { message: string; isTransient: 
   }
 
   // Check common YouTube errors
+  if (
+    lower.includes('sign in to confirm you’re not a bot') ||
+    lower.includes("sign in to confirm you're not a bot") ||
+    lower.includes('confirm you are not a bot') ||
+    lower.includes('bot detection')
+  ) {
+    return {
+      message: 'YouTube bot verification required (common on cloud/datacenter IPs). Use your local Mac app (http://127.0.0.1:3000) or place cookies.txt in the data folder.',
+      isTransient: false,
+    };
+  }
+
   if (lower.includes('sign in to confirm your age') || lower.includes('age-restricted')) {
     return {
       message: 'Video is age-restricted and requires signing in to view.',
@@ -397,6 +435,8 @@ export function executeDownload(
       '--progress-delta', '0.5',
       '--progress-template', 'download:PROGRESS:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s|%(progress.downloaded_bytes)s|%(progress.total_bytes)s',
       '--print', 'after_move:filepath',
+      '--extractor-args', 'youtube:player_client=ios,android,tv,web',
+      ...getCookieArgs(),
       ...buildFormatArgs(item.format, item.quality),
       '-o', outputTemplate,
       item.url,

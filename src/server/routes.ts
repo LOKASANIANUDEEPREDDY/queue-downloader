@@ -41,6 +41,26 @@ apiRouter.post('/system/install-tools', async (_req: Request, res: Response) => 
   }
 });
 
+// Save cookies.txt for bot bypass
+apiRouter.post('/system/cookies', (req: Request, res: Response) => {
+  const { cookies } = req.body;
+  if (!cookies || typeof cookies !== 'string' || !cookies.trim()) {
+    res.status(400).json({ error: 'Cookies text content is required' });
+    return;
+  }
+  try {
+    const cookieDir = path.dirname(config.dbPath);
+    if (!fs.existsSync(cookieDir)) {
+      fs.mkdirSync(cookieDir, { recursive: true });
+    }
+    const cookiePath = path.join(cookieDir, 'cookies.txt');
+    fs.writeFileSync(cookiePath, cookies.trim(), 'utf-8');
+    res.json({ success: true, message: 'cookies.txt saved successfully!' });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to save cookies' });
+  }
+});
+
 // Inspect URL (to detect playlist or check validity)
 apiRouter.post('/urls/inspect', async (req: Request, res: Response) => {
   const { url } = req.body;
