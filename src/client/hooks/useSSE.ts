@@ -13,12 +13,22 @@ export function useSSE() {
   useEffect(() => {
     // Initial fetch of queue state via REST
     fetch('/api/queue')
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`Server returned HTTP ${res.status}`);
+        }
+        const text = await res.text();
+        try {
+          return JSON.parse(text) as QueueState;
+        } catch {
+          throw new Error('Backend returned non-JSON response');
+        }
+      })
       .then((data: QueueState) => {
         setState(data);
       })
       .catch((err) => {
-        console.error('Failed to fetch initial queue:', err);
+        console.warn('Could not connect to backend queue API:', err.message);
       });
 
     // Setup SSE connection

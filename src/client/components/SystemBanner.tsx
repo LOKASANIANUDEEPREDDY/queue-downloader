@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangle, CheckCircle2, RefreshCw, Terminal, Wrench, X } from 'lucide-react';
 import { SystemStatus } from '../../shared/types.js';
 import { toast } from './Toast.js';
+import { safeFetchJson } from '../utils/api.js';
 
 interface SystemBannerProps {
   isOpenModal?: boolean;
@@ -16,9 +17,10 @@ export const SystemBanner: React.FC<SystemBannerProps> = ({ isOpenModal = false,
   const fetchStatus = async () => {
     try {
       setIsRefreshing(true);
-      const res = await fetch('/api/system/status');
-      const data = await res.json();
-      setStatus(data);
+      const result = await safeFetchJson<SystemStatus>('/api/system/status');
+      if (result.ok && result.data) {
+        setStatus(result.data);
+      }
     } catch {
       // ignore
     } finally {
@@ -34,13 +36,13 @@ export const SystemBanner: React.FC<SystemBannerProps> = ({ isOpenModal = false,
     try {
       setIsUpdating(true);
       toast.info('Running yt-dlp updater...', 'System Maintenance');
-      const res = await fetch('/api/system/update-ytdlp', { method: 'POST' });
-      const data = await res.json();
+      const result = await safeFetchJson('/api/system/update-ytdlp', { method: 'POST' });
+      const data = result.data || {};
 
-      if (data.success) {
+      if (result.ok && data.success) {
         toast.success(data.message || 'yt-dlp is up to date!', 'Update Success');
       } else {
-        toast.warning(data.message || 'Update completed with warnings', 'Update Result');
+        toast.warning(result.error || data.message || 'Update completed with warnings', 'Update Result');
       }
       await fetchStatus();
     } catch (err: any) {

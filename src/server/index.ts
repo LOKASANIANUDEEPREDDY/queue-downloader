@@ -1,28 +1,6 @@
-import express from 'express';
-import cors from 'cors';
-import path from 'path';
-import fs from 'fs';
+import { app } from './app.js';
 import { config } from './config.js';
-import { apiRouter } from './routes.js';
 import { checkSystemTools } from './system.js';
-
-const app = express();
-
-// CORS for local development
-app.use(cors());
-app.use(express.json());
-
-// API routes
-app.use('/api', apiRouter);
-
-// Serve static frontend files if built
-const clientDistPath = path.resolve(process.cwd(), 'dist');
-if (fs.existsSync(clientDistPath)) {
-  app.use(express.static(clientDistPath));
-  app.use((_req, res) => {
-    res.sendFile(path.join(clientDistPath, 'index.html'));
-  });
-}
 
 // Start server
 const server = app.listen(config.port, config.host, async () => {

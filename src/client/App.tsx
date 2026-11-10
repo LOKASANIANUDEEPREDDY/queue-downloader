@@ -7,6 +7,7 @@ import { Footer } from './components/Footer.js';
 import { ToastContainer, toast } from './components/Toast.js';
 import { useSSE } from './hooks/useSSE.js';
 import { useTheme } from './hooks/useTheme.js';
+import { safeFetchJson } from './utils/api.js';
 
 export const App: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -16,8 +17,12 @@ export const App: React.FC = () => {
   // Actions
   const handlePause = async () => {
     try {
-      await fetch('/api/queue/pause', { method: 'POST' });
-      toast.info('Queue paused. Current item will finish, next items will wait.', 'Queue');
+      const res = await safeFetchJson('/api/queue/pause', { method: 'POST' });
+      if (res.ok) {
+        toast.info('Queue paused. Current item will finish, next items will wait.', 'Queue');
+      } else {
+        toast.error(res.error || 'Failed to pause queue');
+      }
     } catch {
       toast.error('Failed to pause queue');
     }
@@ -25,8 +30,12 @@ export const App: React.FC = () => {
 
   const handleResume = async () => {
     try {
-      await fetch('/api/queue/resume', { method: 'POST' });
-      toast.success('Queue resumed. Sequential downloading continues.', 'Queue');
+      const res = await safeFetchJson('/api/queue/resume', { method: 'POST' });
+      if (res.ok) {
+        toast.success('Queue resumed. Sequential downloading continues.', 'Queue');
+      } else {
+        toast.error(res.error || 'Failed to resume queue');
+      }
     } catch {
       toast.error('Failed to resume queue');
     }
@@ -34,8 +43,12 @@ export const App: React.FC = () => {
 
   const handleClearCompleted = async () => {
     try {
-      await fetch('/api/queue/clear-completed', { method: 'POST' });
-      toast.info('Cleared completed items from queue', 'Queue');
+      const res = await safeFetchJson('/api/queue/clear-completed', { method: 'POST' });
+      if (res.ok) {
+        toast.info('Cleared completed items from queue', 'Queue');
+      } else {
+        toast.error(res.error || 'Failed to clear completed items');
+      }
     } catch {
       toast.error('Failed to clear completed items');
     }
@@ -43,12 +56,11 @@ export const App: React.FC = () => {
 
   const handleCancelItem = async (id: string) => {
     try {
-      const res = await fetch(`/api/queue/${id}/cancel`, { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
+      const res = await safeFetchJson(`/api/queue/${id}/cancel`, { method: 'POST' });
+      if (res.ok && res.data?.success) {
         toast.info('Download cancelled', 'Queue Item');
       } else {
-        toast.warning('Could not cancel this item');
+        toast.warning(res.error || 'Could not cancel this item');
       }
     } catch {
       toast.error('Failed to cancel item');
@@ -57,10 +69,11 @@ export const App: React.FC = () => {
 
   const handleRetryItem = async (id: string) => {
     try {
-      const res = await fetch(`/api/queue/${id}/retry`, { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
+      const res = await safeFetchJson(`/api/queue/${id}/retry`, { method: 'POST' });
+      if (res.ok && res.data?.success) {
         toast.success('Item added back to queue for download', 'Retry');
+      } else {
+        toast.error(res.error || 'Failed to retry item');
       }
     } catch {
       toast.error('Failed to retry item');
@@ -69,8 +82,12 @@ export const App: React.FC = () => {
 
   const handleRemoveItem = async (id: string) => {
     try {
-      await fetch(`/api/queue/${id}`, { method: 'DELETE' });
-      toast.info('Item removed from queue', 'Queue');
+      const res = await safeFetchJson(`/api/queue/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.info('Item removed from queue', 'Queue');
+      } else {
+        toast.error(res.error || 'Failed to remove item');
+      }
     } catch {
       toast.error('Failed to remove item');
     }
@@ -111,4 +128,3 @@ export const App: React.FC = () => {
     </div>
   );
 };
-

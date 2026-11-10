@@ -3,6 +3,7 @@ import { Plus, Video, Music, Sparkles, Clipboard, Loader2 } from 'lucide-react';
 import { DownloadFormat, VideoQuality, AddUrlsResponse } from '../../shared/types.js';
 import { toast } from './Toast.js';
 import { PlaylistModal } from './PlaylistModal.js';
+import { safeFetchJson } from '../utils/api.js';
 
 interface UrlInputProps {
   onAddSuccess?: (response: AddUrlsResponse) => void;
@@ -41,7 +42,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ onAddSuccess }) => {
   const submitUrls = async (urls: string[], expandPlaylists: boolean) => {
     try {
       setIsSubmitting(true);
-      const res = await fetch('/api/queue', {
+      const result = await safeFetchJson<AddUrlsResponse>('/api/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -52,12 +53,12 @@ export const UrlInput: React.FC<UrlInputProps> = ({ onAddSuccess }) => {
         }),
       });
 
-      const data: AddUrlsResponse = await res.json();
-
-      if (!res.ok) {
-        toast.error((data as any).error || 'Failed to add items to queue');
+      if (!result.ok || !result.data) {
+        toast.error(result.error || 'Failed to add items to queue');
         return;
       }
+
+      const data = result.data;
 
       // Show toast confirmations
       if (data.added.length > 0) {
@@ -104,19 +105,18 @@ export const UrlInput: React.FC<UrlInputProps> = ({ onAddSuccess }) => {
     if (firstPlaylist) {
       try {
         setIsSubmitting(true);
-        const inspectRes = await fetch('/api/urls/inspect', {
+        const inspectRes = await safeFetchJson('/api/urls/inspect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: firstPlaylist }),
         });
-        const inspectData = await inspectRes.json();
 
-        if (inspectData.isPlaylist) {
+        if (inspectRes.ok && inspectRes.data?.isPlaylist) {
           setPlaylistModalData({
             isOpen: true,
             url: firstPlaylist,
-            title: inspectData.title,
-            itemCount: inspectData.itemCount,
+            title: inspectRes.data.title,
+            itemCount: inspectRes.data.itemCount,
             pendingUrls: urls,
           });
           setIsSubmitting(false);
