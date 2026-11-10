@@ -228,7 +228,6 @@ export const SystemBanner: React.FC<SystemBannerProps> = ({ isOpenModal = false,
 
   return (
     <>
-      {MissingBanner}
       {ToolsModal}
     </>
   );

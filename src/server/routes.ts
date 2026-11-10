@@ -152,6 +152,16 @@ apiRouter.post('/queue/playlist', async (req: Request, res: Response) => {
   }
 });
 
+// Start downloading all queued videos one by one
+apiRouter.post('/queue/download-all', (_req: Request, res: Response) => {
+  try {
+    const result = queueManager.downloadAll();
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to start downloading all items' });
+  }
+});
+
 // Cancel item
 apiRouter.post('/queue/:id/cancel', (req: Request, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;

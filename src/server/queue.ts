@@ -218,6 +218,31 @@ export class QueueManager {
   }
 
   /**
+   * Start or resume downloading all queued or failed videos one by one
+   */
+  public downloadAll(): { started: boolean; queuedCount: number } {
+    this.isPaused = false;
+
+    // Reactivate any items in 'Failed' or 'Cancelled' status so they download too
+    const items = dbRepository.getAllItems();
+    for (const item of items) {
+      if (item.status === 'Failed' || item.status === 'Cancelled') {
+        item.status = 'Queued';
+        item.error = null;
+        item.progress = { percent: 0, speed: '', eta: '' };
+        dbRepository.updateItem(item);
+        this.broadcastItemUpdate(item);
+      }
+    }
+
+    const queuedCount = dbRepository.getAllItems().filter((i) => i.status === 'Queued').length;
+    this.broadcastState();
+    this.processNext();
+
+    return { started: true, queuedCount };
+  }
+
+  /**
    * Cancel an item
    */
   public cancelItem(id: string): boolean {

@@ -167,11 +167,22 @@ export async function installCloudTools(): Promise<{ success: boolean; message: 
   }
 
   // 2. Ensure ffmpeg
+  const ffmpegPath = path.join(binDir, 'ffmpeg');
   const ffmpegLinked = await tryEnsureBundledFfmpeg();
   if (ffmpegLinked) {
     messages.push('ffmpeg configured successfully.');
+  } else if (process.platform === 'linux') {
+    try {
+      const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+      const ffmpegUrl = `https://github.com/eugeneware/ffmpeg-static/releases/download/b4.4/linux-${arch}`;
+      await downloadBinary(ffmpegUrl, ffmpegPath);
+      fs.chmodSync(ffmpegPath, 0o755);
+      messages.push(`ffmpeg binary (linux-${arch}) downloaded and configured.`);
+    } catch (err: any) {
+      messages.push(`ffmpeg download note: ${err?.message || 'Download failed'}`);
+    }
   } else {
-    messages.push('ffmpeg check: please ensure ffmpeg is available in system PATH.');
+    messages.push('ffmpeg check: available in system PATH.');
   }
 
   // Refresh status

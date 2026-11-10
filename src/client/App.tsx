@@ -54,6 +54,19 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleDownloadAll = async () => {
+    try {
+      const res = await safeFetchJson<{ started: boolean; queuedCount: number }>('/api/queue/download-all', { method: 'POST' });
+      if (res.ok) {
+        toast.success(`Starting sequential download of ${res.data?.queuedCount || 'all'} queued video(s)...`, 'Download All');
+      } else {
+        toast.error(res.error || 'Failed to start downloading all items');
+      }
+    } catch {
+      toast.error('Failed to trigger download all');
+    }
+  };
+
   const handleCancelItem = async (id: string) => {
     try {
       const res = await safeFetchJson(`/api/queue/${id}/cancel`, { method: 'POST' });
@@ -102,6 +115,7 @@ export const App: React.FC = () => {
         onToggleTheme={toggleTheme}
         onPause={handlePause}
         onResume={handleResume}
+        onDownloadAll={handleDownloadAll}
         onClearCompleted={handleClearCompleted}
         onOpenSystemModal={() => setIsSystemModalOpen(true)}
       />
@@ -120,6 +134,7 @@ export const App: React.FC = () => {
           onCancel={handleCancelItem}
           onRetry={handleRetryItem}
           onRemove={handleRemoveItem}
+          onDownloadAll={handleDownloadAll}
         />
       </main>
 

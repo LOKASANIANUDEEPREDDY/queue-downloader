@@ -10,6 +10,7 @@ interface HeaderProps {
   onToggleTheme: () => void;
   onPause: () => void;
   onResume: () => void;
+  onDownloadAll?: () => void;
   onClearCompleted: () => void;
   onOpenSystemModal?: () => void;
 }
@@ -21,10 +22,12 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   onPause,
   onResume,
+  onDownloadAll,
   onClearCompleted,
   onOpenSystemModal,
 }) => {
   const completedCount = queueState.items.filter((i) => i.status === 'Done').length;
+  const queuedCount = queueState.items.filter((i) => i.status === 'Queued' || i.status === 'Failed').length;
   const activeItem = queueState.items.find((i) => i.id === queueState.activeItemId);
 
   const handleOpenFolder = async () => {
@@ -89,6 +92,18 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Global Controls */}
         <div className="flex items-center gap-2">
+          {/* Download All Queued Videos Button */}
+          {onDownloadAll && queuedCount > 0 && (
+            <button
+              onClick={onDownloadAll}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white shadow-sm transition-all active:scale-95"
+              title="Download all queued videos sequentially one by one"
+            >
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>Download All ({queuedCount})</span>
+            </button>
+          )}
+
           {/* Pause / Resume */}
           {queueState.isPaused ? (
             <button
