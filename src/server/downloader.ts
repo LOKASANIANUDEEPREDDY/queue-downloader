@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, execFile, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { config } from './config.js';
@@ -276,11 +276,11 @@ function buildFormatArgs(format: DownloadFormat, quality: VideoQuality): string[
 
   // MP4 video format selector targeting QuickTime/macOS native H.264 (avc1) + AAC (mp4a)
   const qualityMap: Record<VideoQuality, string> = {
-    best: 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
-    '1080p': 'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080][vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best',
-    '720p': 'bestvideo[height<=720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=720][vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best',
-    '480p': 'bestvideo[height<=480][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=480][vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best',
-    '360p': 'bestvideo[height<=360][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=360][vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/best',
+    best: 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc]+bestaudio/best[vcodec^=avc]/bestvideo+bestaudio/best',
+    '1080p': 'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080][vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[height<=1080][vcodec^=avc]+bestaudio/bestvideo[height<=1080]+bestaudio/best',
+    '720p': 'bestvideo[height<=720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=720][vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[height<=720][vcodec^=avc]+bestaudio/bestvideo[height<=720]+bestaudio/best',
+    '480p': 'bestvideo[height<=480][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=480][vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[height<=480][vcodec^=avc]+bestaudio/bestvideo[height<=480]+bestaudio/best',
+    '360p': 'bestvideo[height<=360][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=360][vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[height<=360][vcodec^=avc]+bestaudio/bestvideo[height<=360]+bestaudio/best',
   };
 
   const formatSelector = qualityMap[quality] || qualityMap.best;
@@ -288,11 +288,95 @@ function buildFormatArgs(format: DownloadFormat, quality: VideoQuality): string[
   return [
     '-f',
     formatSelector,
+    '-S',
+    'vcodec:h264,res,acodec:m4a',
     '--merge-output-format',
     'mp4',
-    '--recode-video',
-    'mp4',
+    '--postprocessor-args',
+    'Merger:-c:a aac -movflags +faststart',
   ];
+}
+
+/**
+ * Validates that an MP4 file has QuickTime-compatible streams (H.264 video + AAC audio).
+ * If YouTube only offered AV1 (av01) or VP9 (vp09), or Opus audio, this transcodes
+ * the file using ffmpeg to standard H.264 (yuv420p) + AAC with faststart so QuickTime
+ * plays it natively without any warning dialog.
+ */
+async function ensureQuickTimeCompatibility(
+  filePath: string,
+  callbacks?: DownloadCallbacks
+): Promise<string> {
+  if (!filePath.endsWith('.mp4') || !fs.existsSync(filePath)) {
+    return filePath;
+  }
+
+  return new Promise((resolve) => {
+    execFile(
+      'ffprobe',
+      ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name', '-of', 'json', filePath],
+      (err, stdout) => {
+        if (err || !stdout) {
+          resolve(filePath);
+          return;
+        }
+
+        try {
+          const data = JSON.parse(stdout);
+          const streams: Array<{ codec_type: string; codec_name: string }> = data.streams || [];
+          const videoStream = streams.find((s) => s.codec_type === 'video');
+          const audioStream = streams.find((s) => s.codec_type === 'audio');
+
+          const isH264 = videoStream?.codec_name === 'h264';
+          const isAacOrMp3 = audioStream?.codec_name === 'aac' || audioStream?.codec_name === 'mp3';
+
+          // Already natively supported by QuickTime
+          if (isH264 && isAacOrMp3) {
+            resolve(filePath);
+            return;
+          }
+
+          // Transcoding needed for QuickTime Player compatibility
+          callbacks?.onStatusChange('Converting');
+
+          const tempOutput = `${filePath}.qt_fix.mp4`;
+          const ffmpegArgs = [
+            '-y',
+            '-i', filePath,
+            '-c:v', isH264 ? 'copy' : 'libx264',
+            ...(isH264 ? [] : ['-pix_fmt', 'yuv420p', '-preset', 'fast', '-crf', '22']),
+            '-c:a', isAacOrMp3 ? 'copy' : 'aac',
+            ...(isAacOrMp3 ? [] : ['-b:a', '192k']),
+            '-movflags', '+faststart',
+            tempOutput,
+          ];
+
+          execFile('ffmpeg', ffmpegArgs, (ffmpegErr) => {
+            if (ffmpegErr || !fs.existsSync(tempOutput)) {
+              try {
+                if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
+              } catch {}
+              resolve(filePath);
+              return;
+            }
+
+            try {
+              fs.renameSync(tempOutput, filePath);
+            } catch {
+              try {
+                fs.copyFileSync(tempOutput, filePath);
+                fs.unlinkSync(tempOutput);
+              } catch {}
+            }
+
+            resolve(filePath);
+          });
+        } catch {
+          resolve(filePath);
+        }
+      }
+    );
+  });
 }
 
 export function executeDownload(
@@ -418,7 +502,7 @@ export function executeDownload(
       rawStderr += chunk.toString();
     });
 
-    proc.on('close', (code, signal) => {
+    proc.on('close', async (code, signal) => {
       activeProcesses.delete(item.id);
 
       if (signal === 'SIGTERM' || signal === 'SIGKILL') {
@@ -448,6 +532,13 @@ export function executeDownload(
           if (found) {
             finalFilePath = path.join(config.downloadDir, found);
           }
+        } catch {}
+      }
+
+      // Ensure 100% QuickTime compatibility (transcode AV1/VP9 to H.264 if needed)
+      if (finalFilePath && fs.existsSync(finalFilePath) && item.format === 'mp4') {
+        try {
+          finalFilePath = await ensureQuickTimeCompatibility(finalFilePath, callbacks);
         } catch {}
       }
 
