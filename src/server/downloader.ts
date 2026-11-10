@@ -570,9 +570,12 @@ export function executeDownload(
         stdio: ['ignore', 'pipe', 'pipe'],
       });
     } catch (err: any) {
+      const errorMsg = config.isVercel
+        ? 'yt-dlp is not available on Vercel Serverless. Please use the local app at http://127.0.0.1:3000 or deploy to Render/Railway for video downloads.'
+        : `Failed to spawn yt-dlp: ${err?.message || 'unknown error'}`;
       resolve({
         success: false,
-        error: `Failed to spawn yt-dlp: ${err?.message || 'unknown error'}`,
+        error: errorMsg,
         isTransient: false,
       });
       return;
@@ -713,11 +716,17 @@ export function executeDownload(
       });
     });
 
-    proc.on('error', (err) => {
+    proc.on('error', (err: any) => {
       activeProcesses.delete(item.id);
+      let errorMsg = `Process error: ${err.message}`;
+      if (err.code === 'ENOENT' || err.message?.includes('ENOENT')) {
+        errorMsg = config.isVercel
+          ? 'yt-dlp is not available on Vercel Serverless. Please use the local app at http://127.0.0.1:3000 or deploy to Render/Railway for video downloads.'
+          : 'yt-dlp was not found on your system. Please install it using: brew install yt-dlp';
+      }
       resolve({
         success: false,
-        error: `Process error: ${err.message}`,
+        error: errorMsg,
         isTransient: false,
       });
     });
