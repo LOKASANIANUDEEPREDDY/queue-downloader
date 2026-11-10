@@ -13,6 +13,7 @@ export const SystemBanner: React.FC<SystemBannerProps> = ({ isOpenModal = false,
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isInstalling, setIsInstalling] = useState<boolean>(false);
 
   const fetchStatus = async () => {
     try {
@@ -31,6 +32,26 @@ export const SystemBanner: React.FC<SystemBannerProps> = ({ isOpenModal = false,
   useEffect(() => {
     fetchStatus();
   }, []);
+
+  const handleInstallTools = async () => {
+    try {
+      setIsInstalling(true);
+      toast.info('Downloading and configuring yt-dlp & ffmpeg binaries in server...', 'Auto-Installer', 6000);
+      const result = await safeFetchJson<{ success: boolean; message: string }>('/api/system/install-tools', {
+        method: 'POST',
+      });
+      if (result.ok && result.data?.success) {
+        toast.success(result.data.message || 'Tools provisioned successfully!', 'Ready to Download');
+      } else {
+        toast.warning(result.data?.message || result.error || 'Provisioning attempted', 'Installer Result');
+      }
+      await fetchStatus();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to auto-install tools');
+    } finally {
+      setIsInstalling(false);
+    }
+  };
 
   const handleUpdateYtdlp = async () => {
     try {
@@ -86,15 +107,28 @@ export const SystemBanner: React.FC<SystemBannerProps> = ({ isOpenModal = false,
             </button>
           </div>
 
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3.5 flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleInstallTools}
+              disabled={isInstalling || isRefreshing}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white transition-colors shadow-sm"
+            >
+              <Wrench className={`w-3.5 h-3.5 ${isInstalling ? 'animate-spin' : ''}`} />
+              {isInstalling ? 'Installing Binaries...' : '⚡ Auto-Install Cloud Tools'}
+            </button>
+
             <button
               onClick={fetchStatus}
-              disabled={isRefreshing}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+              disabled={isRefreshing || isInstalling}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white transition-colors"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
               Recheck Tools
             </button>
+
+            <span className="text-xs text-amber-800 dark:text-amber-300 font-normal">
+              💡 Tip: The local app at <code>http://127.0.0.1:3000</code> uses your Mac's Homebrew tools with zero timeouts.
+            </span>
           </div>
         </div>
       </div>
@@ -170,13 +204,21 @@ export const SystemBanner: React.FC<SystemBannerProps> = ({ isOpenModal = false,
           </div>
         </div>
 
-        <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-2 justify-end">
+        <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2 justify-end">
+          <button
+            onClick={handleInstallTools}
+            disabled={isInstalling || isUpdating}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all disabled:opacity-50"
+          >
+            <Wrench className={`w-3.5 h-3.5 ${isInstalling ? 'animate-spin' : ''}`} />
+            {isInstalling ? 'Installing...' : '⚡ Auto-Install Tools'}
+          </button>
           <button
             onClick={handleUpdateYtdlp}
-            disabled={isUpdating}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-all disabled:opacity-50"
+            disabled={isUpdating || isInstalling}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-all disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 ${isUpdating ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isUpdating ? 'animate-spin' : ''}`} />
             {isUpdating ? 'Updating...' : 'Update yt-dlp'}
           </button>
         </div>

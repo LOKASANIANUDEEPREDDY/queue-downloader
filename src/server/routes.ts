@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import { queueManager } from './queue.js';
-import { checkSystemTools, updateYtDlp } from './system.js';
+import { checkSystemTools, updateYtDlp, installCloudTools } from './system.js';
 import { validateYouTubeUrl } from './validator.js';
 import { fetchPlaylistEntries } from './downloader.js';
 import { DownloadFormat, VideoQuality } from '../shared/types.js';
@@ -28,6 +28,16 @@ apiRouter.post('/system/update-ytdlp', async (_req: Request, res: Response) => {
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ success: false, message: err?.message || 'Failed to update yt-dlp' });
+  }
+});
+
+// Auto-install / provision tools for cloud or local environments
+apiRouter.post('/system/install-tools', async (_req: Request, res: Response) => {
+  try {
+    const result = await installCloudTools();
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Failed to install tools' });
   }
 });
 
@@ -98,6 +108,27 @@ apiRouter.post('/queue', async (req: Request, res: Response) => {
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Failed to add items to queue' });
+  }
+});
+
+// 1-Click download entire playlist endpoint
+apiRouter.post('/queue/playlist', async (req: Request, res: Response) => {
+  const { url, format = 'mp4', quality = 'best' } = req.body;
+  if (!url || typeof url !== 'string' || !url.trim()) {
+    res.status(400).json({ error: 'Playlist URL is required' });
+    return;
+  }
+
+  try {
+    const result = await queueManager.addUrls(
+      [url.trim()],
+      (format as DownloadFormat) || 'mp4',
+      (quality as VideoQuality) || 'best',
+      true
+    );
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to add playlist to queue' });
   }
 });
 

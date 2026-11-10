@@ -1,10 +1,55 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import https from 'https';
+import http from 'http';
 import { config } from './config.js';
 import { SystemStatus } from '../shared/types.js';
 
 let cachedStatus: SystemStatus | null = null;
+
+// Ensure temporary bin directory for cloud/serverless environments
+const binDir = path.resolve(process.env.TEMP || '/tmp', 'bin');
+try {
+  if (!fs.existsSync(binDir)) {
+    fs.mkdirSync(binDir, { recursive: true });
+  }
+} catch {}
+
+// Ensure PATH contains all standard binary directories + /tmp/bin
+if (!process.env.PATH?.includes(binDir)) {
+  process.env.PATH = `${binDir}:${process.env.PATH || ''}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin`;
+}
+
+function downloadBinary(url: string, destPath: string, maxRedirects = 5): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (maxRedirects <= 0) {
+      reject(new Error('Too many redirects while downloading binary'));
+      return;
+    }
+
+    const client = url.startsWith('https:') ? https : http;
+    client.get(url, { headers: { 'User-Agent': 'QueueDownloader-SystemInstaller' } }, (res) => {
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return resolve(downloadBinary(res.headers.location, destPath, maxRedirects - 1));
+      }
+      if (res.statusCode !== 200) {
+        reject(new Error(`Failed to download binary: HTTP ${res.statusCode}`));
+        return;
+      }
+
+      const file = fs.createWriteStream(destPath);
+      res.pipe(file);
+      file.on('finish', () => {
+        file.close(() => resolve());
+      });
+      file.on('error', (err) => {
+        fs.unlink(destPath, () => {});
+        reject(err);
+      });
+    }).on('error', reject);
+  });
+}
 
 function runCommandAsync(cmd: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolve) => {
@@ -34,10 +79,38 @@ function runCommandAsync(cmd: string, args: string[]): Promise<{ stdout: string;
   });
 }
 
+/**
+ * Checks for bundled or static ffmpeg and links it into binDir if missing
+ */
+async function tryEnsureBundledFfmpeg(): Promise<boolean> {
+  try {
+    const ffmpegPkg = await import('@ffmpeg-installer/ffmpeg');
+    const installerPath = ffmpegPkg?.default?.path;
+    if (installerPath && fs.existsSync(installerPath)) {
+      const target = path.join(binDir, 'ffmpeg');
+      if (!fs.existsSync(target)) {
+        try {
+          fs.symlinkSync(installerPath, target);
+        } catch {
+          fs.copyFileSync(installerPath, target);
+        }
+        try {
+          fs.chmodSync(target, 0o755);
+        } catch {}
+      }
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
 export async function checkSystemTools(forceRefresh = false): Promise<SystemStatus> {
   if (cachedStatus && !forceRefresh) {
     return cachedStatus;
   }
+
+  // Attempt to link bundled ffmpeg if system ffmpeg is not in PATH
+  await tryEnsureBundledFfmpeg();
 
   // Check yt-dlp
   const ytdlpResult = await runCommandAsync('yt-dlp', ['--version']);
@@ -68,13 +141,55 @@ export async function checkSystemTools(forceRefresh = false): Promise<SystemStat
   return cachedStatus;
 }
 
+/**
+ * Automatically provisions yt-dlp and ffmpeg binaries for cloud/serverless environments
+ */
+export async function installCloudTools(): Promise<{ success: boolean; message: string }> {
+  const messages: string[] = [];
+
+  // 1. Install or update yt-dlp standalone executable
+  const ytdlpPath = path.join(binDir, 'yt-dlp');
+  try {
+    const url = process.platform === 'linux'
+      ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux'
+      : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+    
+    await downloadBinary(url, ytdlpPath);
+    fs.chmodSync(ytdlpPath, 0o755);
+    messages.push('yt-dlp standalone binary installed successfully.');
+  } catch (err: any) {
+    messages.push(`yt-dlp auto-install note: ${err?.message || 'Download failed'}`);
+  }
+
+  // 2. Ensure ffmpeg
+  const ffmpegLinked = await tryEnsureBundledFfmpeg();
+  if (ffmpegLinked) {
+    messages.push('ffmpeg configured successfully.');
+  } else {
+    messages.push('ffmpeg check: please ensure ffmpeg is available in system PATH.');
+  }
+
+  // Refresh status
+  const status = await checkSystemTools(true);
+  const success = status.ytdlp.installed;
+
+  return {
+    success,
+    message: messages.join(' ') || (success ? 'Tools are ready.' : 'Failed to provision tools.'),
+  };
+}
+
 export async function updateYtDlp(): Promise<{ success: boolean; message: string; version?: string }> {
   // First test if yt-dlp is installed
   const check = await checkSystemTools(true);
   if (!check.ytdlp.installed) {
+    // If not installed, run auto-install
+    const installResult = await installCloudTools();
+    const newStatus = await checkSystemTools(true);
     return {
-      success: false,
-      message: 'yt-dlp is not installed. Please install it using: brew install yt-dlp (macOS) or python3 -m pip install -U yt-dlp',
+      success: installResult.success,
+      message: installResult.message,
+      version: newStatus.ytdlp.version,
     };
   }
 

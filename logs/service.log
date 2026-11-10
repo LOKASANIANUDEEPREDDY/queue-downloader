@@ -554,3 +554,15 @@ Server closed. Goodbye!
 
 ✅ yt-dlp detected: version 2026.10.26
 ✅ ffmpeg detected: ffmpeg version 9.0.1 Copyright (c) 2000-2026 the FFmpeg developers
+
+Shutting down server gracefully...
+
+==================================================
+⚡ Queue Downloader Server running on http://127.0.0.1:3000
+📁 Download directory: /Users/anudeep/ytr/downloads
+🗄️ Database: /Users/anudeep/ytr/data/queue.db
+⏱️ Retention: 7 days
+==================================================
+
+✅ yt-dlp detected: version 2026.10.26
+✅ ffmpeg detected: ffmpeg version 4.4 Copyright (c) 2000-2021 the FFmpeg developers

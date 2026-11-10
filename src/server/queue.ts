@@ -136,13 +136,19 @@ export class QueueManager {
         continue;
       }
 
-      // Check if user requested expanding playlist
-      if (validation.isPlaylist && expandPlaylists) {
+      // Check if user requested expanding playlist OR if it is a pure playlist URL
+      if (validation.isPlaylist && (expandPlaylists || !validation.videoId)) {
         const playlist = await fetchPlaylistEntries(trimmed);
         if (playlist && playlist.entries.length > 0) {
           for (const entry of playlist.entries) {
             urlsToProcess.push({ url: entry.url, titleHint: entry.title });
           }
+          continue;
+        } else if (!validation.videoId) {
+          response.errors.push({
+            url: trimmed,
+            error: 'Could not fetch any playable videos from this playlist. It may be private or empty.',
+          });
           continue;
         }
       }
