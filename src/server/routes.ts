@@ -229,6 +229,58 @@ apiRouter.post('/downloads/open-folder', (_req: Request, res: Response) => {
   }
 });
 
+// Download all finished files as a single ZIP archive
+apiRouter.get('/downloads/archive.zip', (_req: Request, res: Response) => {
+  const completedItems = queueManager.getItems().filter(
+    (item) => item.status === 'Done' && item.filePath && fs.existsSync(item.filePath)
+  );
+
+  if (completedItems.length === 0) {
+    res.status(404).json({ error: 'No completed download files are available to archive.' });
+    return;
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const zipFilename = `QueueDownloader_${completedItems.length}_Files_${timestamp}.zip`;
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${zipFilename}"`
+  );
+
+  // Use system zip with -@ (reads files from stdin) and -j (junk directory paths, flat zip)
+  const zipProc = spawn('zip', ['-q', '-j', '-', '-@'], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+
+  zipProc.stdout.pipe(res);
+
+  zipProc.on('error', (err) => {
+    console.error('Failed to run zip process:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to create zip archive: zip utility error' });
+    }
+  });
+
+  res.on('close', () => {
+    if (!zipProc.killed) {
+      zipProc.kill('SIGTERM');
+    }
+  });
+
+  // Feed file paths into stdin, one per line
+  for (const item of completedItems) {
+    zipProc.stdin.write(`${item.filePath}\n`);
+  }
+  zipProc.stdin.end();
+});
+
+// Alias for convenience
+apiRouter.get('/downloads/zip', (_req: Request, res: Response) => {
+  res.redirect('/api/downloads/archive.zip');
+});
+
 // Serve finished file for browser download
 apiRouter.get('/downloads/:id/file', (req: Request, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;

@@ -23,8 +23,8 @@ ENV DOWNLOAD_DIR=/app/downloads
 ENV DB_PATH=/app/data/queue.db
 ENV RETENTION_DAYS=7
 
-# Install runtime dependencies: ffmpeg, python3, yt-dlp
-RUN apk add --no-cache ffmpeg python3 py3-pip \
+# Install runtime dependencies: ffmpeg, python3, yt-dlp, zip
+RUN apk add --no-cache ffmpeg python3 py3-pip zip \
     && wget -q https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp
 

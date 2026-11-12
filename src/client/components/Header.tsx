@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Trash2, Sun, Moon, ArrowDownToLine, RefreshCw, FolderOpen } from 'lucide-react';
+import { Play, Pause, Trash2, Sun, Moon, ArrowDownToLine, RefreshCw, FolderOpen, Archive } from 'lucide-react';
 import { QueueState } from '../../shared/types.js';
 import { toast } from './Toast.js';
 
@@ -11,6 +11,7 @@ interface HeaderProps {
   onPause: () => void;
   onResume: () => void;
   onDownloadAll?: () => void;
+  onSaveAllZip?: () => void;
   onClearCompleted: () => void;
   onOpenSystemModal?: () => void;
 }
@@ -23,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   onPause,
   onResume,
   onDownloadAll,
+  onSaveAllZip,
   onClearCompleted,
   onOpenSystemModal,
 }) => {
@@ -122,6 +124,18 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Pause className="w-4 h-4" />
               <span>Pause Queue</span>
+            </button>
+          )}
+
+          {/* Save All Files (ZIP) */}
+          {completedCount > 0 && onSaveAllZip && (
+            <button
+              onClick={onSaveAllZip}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all active:scale-95"
+              title="Save all completed files at once in a single ZIP download"
+            >
+              <Archive className="w-4 h-4" />
+              <span>Save All ({completedCount})</span>
             </button>
           )}
 

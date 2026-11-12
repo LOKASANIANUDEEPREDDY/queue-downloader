@@ -54,6 +54,42 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleSaveAllZip = () => {
+    const completed = queueState.items.filter((i) => i.status === 'Done');
+    if (completed.length === 0) {
+      toast.warning('No completed files are available to download');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = '/api/downloads/archive.zip';
+    link.download = '';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Preparing ZIP of ${completed.length} completed file(s)...`, 'Save All ZIP');
+  };
+
+  const handleSaveAllIndividual = async () => {
+    const completed = queueState.items.filter((i) => i.status === 'Done');
+    if (completed.length === 0) {
+      toast.warning('No completed files are available to save');
+      return;
+    }
+    toast.info(`Saving ${completed.length} file(s) to your Downloads folder...`, 'Save All');
+    for (let i = 0; i < completed.length; i++) {
+      const item = completed[i];
+      const link = document.createElement('a');
+      link.href = `/api/downloads/${item.id}/file`;
+      link.download = '';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      if (i < completed.length - 1) {
+        await new Promise((r) => setTimeout(r, 350));
+      }
+    }
+  };
+
   const handleDownloadAll = async () => {
     try {
       const res = await safeFetchJson<{ started: boolean; queuedCount: number }>('/api/queue/download-all', { method: 'POST' });
@@ -116,6 +152,7 @@ export const App: React.FC = () => {
         onPause={handlePause}
         onResume={handleResume}
         onDownloadAll={handleDownloadAll}
+        onSaveAllZip={handleSaveAllZip}
         onClearCompleted={handleClearCompleted}
         onOpenSystemModal={() => setIsSystemModalOpen(true)}
       />
@@ -135,6 +172,8 @@ export const App: React.FC = () => {
           onRetry={handleRetryItem}
           onRemove={handleRemoveItem}
           onDownloadAll={handleDownloadAll}
+          onSaveAllZip={handleSaveAllZip}
+          onSaveAllIndividual={handleSaveAllIndividual}
         />
       </main>
 
